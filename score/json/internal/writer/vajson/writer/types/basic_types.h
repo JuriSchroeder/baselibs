@@ -24,11 +24,7 @@
 
 #include "score/json/internal/parser/vajson/vajson_impl/util/types.h"
 
-namespace score
-{
-namespace json
-{
-namespace vajson
+namespace score::json::vajson
 {
 inline namespace types
 {
@@ -39,7 +35,7 @@ struct JNullType final
 
 /// \brief Serializes a Null value
 /// \return The serializable null type.
-constexpr inline auto JNull() noexcept -> JNullType
+constexpr auto JNull() noexcept -> JNullType
 {
     return JNullType{};
 }
@@ -54,7 +50,7 @@ struct JBoolType final
 /// \brief Serializes a Bool value
 /// \param[in] b Bool value to serialize.
 /// \return The serializable bool type.
-constexpr inline auto JBool(bool b) noexcept -> JBoolType
+constexpr auto JBool(bool b) noexcept -> JBoolType
 {
     return {b};
 }
@@ -69,7 +65,7 @@ class JKeyType final
 
     /// \brief Returns the contained value
     /// \return The value.
-    auto GetValue() const noexcept -> std::string_view
+    [[nodiscard]] auto GetValue() const noexcept -> std::string_view
     {
         return this->value_;
     }
@@ -112,8 +108,10 @@ constexpr auto operator""_key(const char* s, std::size_t size) noexcept -> JKeyT
 // clang-format on
 
 /// \brief A Number type
+/// \details bool is excluded: it is a JSON boolean, not a JSON number, and has no std::to_chars overload.
+///     Use JBool instead.
 /// \tparam N Type of number.
-template <typename N, typename = typename std::enable_if<std::is_arithmetic<N>::value>::type>
+template <typename N, typename = std::enable_if_t<std::is_arithmetic_v<N> && !std::is_same_v<N, bool>>>
 class JNumberType final
 {
   public:
@@ -123,7 +121,7 @@ class JNumberType final
 
     /// \brief Returns the contained value
     /// \return The value.
-    auto GetValue() const noexcept -> N
+    [[nodiscard]] auto GetValue() const noexcept -> N
     {
         return this->value_;
     }
@@ -133,74 +131,12 @@ class JNumberType final
     N value_;
 };
 
-/// \brief A char Number type
-template <>
-class JNumberType<char> final
-{
-  public:
-    /// \brief Constructs a Number type
-    /// \param[in] num Number to serialize.
-    constexpr explicit JNumberType(char num) noexcept : value_(std::char_traits<char>::to_int_type(num)) {}
-
-    /// \brief Returns the contained value
-    /// \return The value.
-    auto GetValue() const noexcept -> std::int32_t
-    {
-        return this->value_;
-    }
-
-  private:
-    /// \brief Wrapped number value
-    std::int32_t value_;
-};
-
-/// \brief A std::uint8_t Number type
-template <>
-class JNumberType<std::uint8_t> final
-{
-  public:
-    /// \brief Constructs a Number type
-    /// \param[in] num Number to serialize.
-    constexpr explicit JNumberType(std::uint8_t num) noexcept : value_(static_cast<std::uint32_t>(num)) {}
-
-    /// \brief Returns the contained value
-    /// \return The value.
-    auto GetValue() const noexcept -> std::uint32_t
-    {
-        return this->value_;
-    }
-
-  private:
-    /// \brief Wrapped number value
-    std::uint32_t value_;
-};
-
-/// \brief A std::int8_t Number type
-template <>
-class JNumberType<std::int8_t> final
-{
-  public:
-    /// \brief Constructs a Number type
-    /// \param[in] num Number to serialize.
-    constexpr explicit JNumberType(std::int8_t num) noexcept : value_(static_cast<std::int32_t>(num)) {}
-
-    /// \brief Returns the contained value
-    /// \return The value.
-    auto GetValue() const noexcept -> std::int32_t
-    {
-        return this->value_;
-    }
-
-  private:
-    /// \brief Wrapped number value
-    std::int32_t value_;
-};
-
 /// \brief Serializes a Number value
+/// \details bool is excluded: it is a JSON boolean, not a JSON number. Use JBool instead.
 /// \tparam N Type of number.
 /// \param[in] n The number to serialize.
 /// \return The serializable number type.
-template <typename N, typename = typename std::enable_if<std::is_arithmetic<N>::value>::type>
+template <typename N, typename = std::enable_if_t<std::is_arithmetic_v<N> && !std::is_same_v<N, bool>>>
 constexpr auto JNumber(N n) noexcept -> JNumberType<N>
 {
     return JNumberType<N>{n};
@@ -216,7 +152,7 @@ class JStringType final
 
     /// \brief Returns the contained value
     /// \return The value.
-    auto GetValue() const noexcept -> std::string_view
+    [[nodiscard]] auto GetValue() const noexcept -> std::string_view
     {
         return this->value_;
     }
@@ -264,7 +200,7 @@ class IdSerializer
 // clang-format off
 }  // namespace types
 // // clang-format on
-}  // namespace vajson
-}  // namespace json
-}  // namespace score
+} // namespace score::json::vajson
+
+
 #endif  // SCORE_LIB_JSON_INTERNAL_WRITER_VAJSON_WRITER_TYPES_BASIC_TYPES_H

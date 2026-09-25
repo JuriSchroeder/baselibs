@@ -27,9 +27,8 @@ score::Result<void> SerializeToStream(std::ostream& out_stream, const T& json_da
     score::Result<void> result{};
     if (out_stream.fail())
     {
-        result = score::Result<void>{
-            score::unexpect,
-            score::json::MakeError(score::json::Error::kUnknownError, "vaJSON serializer failed to write to stream")};
+        result =
+            score::MakeUnexpected(score::json::Error::kUnknownError, "vaJSON serializer failed to write to stream");
     }
 
     return result;
@@ -46,9 +45,8 @@ score::Result<std::string> SerializeToBuffer(const T& json_data)
     });
 }
 }  // namespace
-namespace score
-{
-namespace json
+
+namespace score::json
 {
 VajsonSerialize::VajsonSerialize(std::ostream& out_stream) noexcept : out_stream_{out_stream} {}
 score::Result<void> VajsonSerialize::operator<<(const score::json::Object& json_data)
@@ -75,5 +73,4 @@ score::Result<std::string> VajsonToBuffer(const score::json::Any& json_data)
 {
     return SerializeToBuffer(json_data);
 }
-}  // namespace json
-}  // namespace score
+}  // namespace score::json

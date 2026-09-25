@@ -17,6 +17,7 @@
 #include "score/json/internal/writer/vajson/writer/serializers/structures/generic_value_serializer_impl.h"
 #include "score/json/internal/writer/vajson/writer/serializers/structures/key_serializer.h"
 #include "score/result/result.h"
+#include "score/string_manipulation/string_comparison_adaptor.h"
 #include <score/assert.hpp>
 #include <score/utility.hpp>
 #include <cstdint>
@@ -24,20 +25,17 @@
 #include <ostream>
 #include <string>
 #include <utility>
-namespace score
+
+namespace score::json
 {
-namespace json
-{
-namespace internal
-{
-namespace writer
-{
-namespace vajson
+
+namespace internal::writer::vajson
 {
 class ObjectKeySerializer final
 {
   public:
-    auto operator()(const score::memory::StringComparisonAdaptor& key) const noexcept -> score::json::vajson::JKeyType
+    auto operator()(const score::string_manipulation::StringComparisonAdaptor& key) const noexcept
+        -> score::json::vajson::JKeyType
     {
         return score::json::vajson::JKey(key.GetAsStringView());
     }
@@ -138,17 +136,22 @@ auto SerializeValue(score::json::vajson::GenericValueSerializer<Next>&& serializ
     {
         serialized.emplace(SerializeNumber(std::move(serializer), number->get()));
     }
+    else if (const auto boolean = value.As<bool>(); boolean.has_value())
+    {
+        serialized.emplace(std::move(serializer) << score::json::vajson::JBool(*boolean));
+    }
     else
     {
-        const auto boolean = value.As<bool>();
-        serialized.emplace(std::move(serializer) << score::json::vajson::JBool(*boolean));
+        // Any holds a bool, a Number, a std::string, a Null, an Object or a List, so every alternative has been
+        // probed by now and this branch cannot be reached. Writing null keeps the output valid JSON in case an
+        // alternative is added to Any without being handled here.
+        serialized.emplace(std::move(serializer) << score::json::vajson::JNull()); /* LCOV_EXCL_LINE */
     }
 
     return *std::move(serialized);
 }
-}  // namespace vajson
-}  // namespace writer
-}  // namespace internal
+}  // namespace internal::writer::vajson
+
 class VajsonSerialize final
 {
   public:
@@ -168,13 +171,9 @@ class VajsonSerialize final
 score::Result<std::string> VajsonToBuffer(const score::json::Object& json_data);
 score::Result<std::string> VajsonToBuffer(const score::json::List& json_data);
 score::Result<std::string> VajsonToBuffer(const score::json::Any& json_data);
-}  // namespace json
-}  // namespace score
-namespace score
-{
-namespace json
-{
-namespace vajson
+}  // namespace score::json
+
+namespace score::json::vajson
 {
 template <typename Next>
 auto operator<<(GenericValueSerializer<Next>&& serializer, const score::json::Object& value) noexcept ->
@@ -194,7 +193,6 @@ auto operator<<(GenericValueSerializer<Next>&& serializer, const score::json::An
 {
     return score::json::internal::writer::vajson::SerializeValue(std::move(serializer), value);
 }
-}  // namespace vajson
-}  // namespace json
-}  // namespace score
+}  // namespace score::json::vajson
+
 #endif  // SCORE_LIB_JSON_INTERNAL_WRITER_VAJSON_VAJSON_SERIALIZE_H

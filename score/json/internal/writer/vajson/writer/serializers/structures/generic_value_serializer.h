@@ -19,23 +19,20 @@
 
 #include <charconv>
 #include <array>
+#include <cmath>
+#include <ios>
 #include <system_error>
+#include <type_traits>
 
 #include "score/json/internal/parser/vajson/vajson_impl/util/json_error_domain.h"
 #include "score/json/internal/parser/vajson/vajson_impl/util/types.h"
 #include "score/json/internal/writer/vajson/writer/serializers/structures/serializer.h"
 #include "score/json/internal/writer/vajson/writer/serializers/util/escaped_json_string.h"
-#include "score/json/internal/writer/vajson/writer/serializers/util/length_serializer.h"
 #include "score/json/internal/writer/vajson/writer/types/array_type.h"
 #include "score/json/internal/writer/vajson/writer/types/basic_types.h"
-#include "score/json/internal/writer/vajson/writer/types/bin_types.h"
 #include "score/json/internal/writer/vajson/writer/types/object_type.h"
 
-namespace score
-{
-namespace json
-{
-namespace vajson
+namespace score::json::vajson
 {
 /// \brief A serializer for JSON value types
 /// \tparam Return Type of the return value of a << operation. Must be one of the following types: - Unit: Serializer
@@ -48,7 +45,7 @@ class GenericValueSerializer final
     /// \brief Type of the return value
     /// \details Set the type of the return value to be either its own type GenericValueSerializer (for arrays or a
     ///     specified type) or the type specified by Return.
-    using Next = typename std::conditional_t<std::is_same<Return, Self>::value, GenericValueSerializer, Return>;
+    using Next = typename std::conditional_t<std::is_same_v<Return, Self>, GenericValueSerializer, Return>;
 
     /// \brief Constructs a GenericValueSerializer from an output stream
     /// \details Do not create an instance of GenericValueSerializer directly, use the aliases in
@@ -104,6 +101,9 @@ class GenericValueSerializer final
     }
 
     /// \brief Serializes a number value
+    /// \details The JSON grammar of RFC 8259, section 6 only covers finite numbers, so infinity and NaN have no
+    ///     representation. Such a value is not written at all, instead the output stream is put into the failed
+    ///     state, which the enclosing serializer reports as an error to its caller.
     /// \tparam T Type of number.
     /// \param[in] number value to serialize.
     /// \return The succeeding serializer.
@@ -112,16 +112,26 @@ class GenericValueSerializer final
     auto operator<<(JNumberType<T> number) && noexcept -> Next
     {
         return this->Serialize([this, number]() noexcept {
-            // Buffer size: max 24 chars for double, ~20 for int64, extra space for safety
-            std::array<char, 64> buffer{};
-            T value = static_cast<T>(number.GetValue());
+            const T value = number.GetValue();
 
-            const auto conversion_result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), value);
+            if (!IsFinite(value))
+            {
+                this->os_.get().setstate(std::ios_base::failbit);
+            }
+            else
+            {
+                // Buffer size: max 24 chars for double, ~20 for int64, extra space for safety
+                static constexpr std::size_t kBufferSize{64};
+                std::array<char, kBufferSize> buffer{};
 
-            AssertCondition(conversion_result.ec == std::errc{},
-                            "GenericValueSerializer: Could not convert number to textual representation.");
+                const auto conversion_result = std::to_chars(buffer.data(), buffer.data() + buffer.size(), value);
 
-            this->os_.get().write(buffer.data(), static_cast<std::streamsize>(conversion_result.ptr - buffer.data()));
+                AssertCondition(conversion_result.ec == std::errc{},
+                                "GenericValueSerializer: Could not convert number to textual representation.");
+
+                this->os_.get().write(buffer.data(),
+                                      static_cast<std::streamsize>(conversion_result.ptr - buffer.data()));
+            }
         });
     }
 
@@ -138,24 +148,6 @@ class GenericValueSerializer final
             this->os_.get().put('"');
             this->os_.get() << internal::EscapedJsonString(string);
             this->os_.get().put('"');
-        });
-    }
-
-    /// \brief Serializes a binary string value
-    /// \details
-    /// - Add a 's' to denote the following value as a string.
-    /// - Serialize the length of the string value as four bytes big endian.
-    /// - Write the string value.
-    /// \param[in] string value to serialize.
-    /// \return The succeeding serializer.
-    // coverity[autosar_cpp14_m9_3_3_violation]
-    auto operator<<(JBinStringType string) && noexcept -> Next
-    {
-        return this->Serialize([this, string]() noexcept {
-            this->os_.get().put('s');
-            internal::SerializeLength(this->os_.get(), string.GetLength());
-            const auto& value = string.GetValue();
-            this->os_.get().write(value.data(), static_cast<std::streamsize>(value.size()));
         });
     }
 
@@ -179,24 +171,6 @@ class GenericValueSerializer final
         });
     }
 
-    /// \brief Serializes a binary value
-    /// \details
-    /// - Add a 'b' to denote the following value as binary.
-    /// - Serialize the length of the binary value as four bytes big endian.
-    /// - Write the binary value.
-    /// \param[in] bin Value to serialize.
-    /// \return The succeeding serializer.
-    // coverity[autosar_cpp14_m9_3_3_violation]
-    auto operator<<(JBinType bin) && noexcept -> Next
-    {
-        return this->Serialize([this, bin]() noexcept {
-            this->os_.get().put('b');
-            internal::SerializeLength(this->os_.get(), bin.GetLength());
-            const auto& value = bin.GetValue();
-            this->os_.get().write(value.data(), static_cast<std::streamsize>(value.size()));
-        });
-    }
-
     /// \brief Serializes an object
     /// \tparam Fn Type of serializer function.
     /// \param[in] object to serialize.
@@ -206,6 +180,18 @@ class GenericValueSerializer final
     auto operator<<(JObjectType<Fn> object) && noexcept -> Next;
 
   private:
+    /// \brief Checks whether a number is representable as a JSON number
+    /// \details RFC 8259, section 6 only allows finite numbers. Only floating point values can be non-finite,
+    ///     integral values are always representable.
+    /// \tparam T Type of number.
+    /// \param[in] value Number to check.
+    /// \return True if the value is finite, false otherwise.
+    template <typename T>
+    static auto IsFinite(const T value) noexcept -> bool
+    {
+        return !std::is_floating_point_v<T> || std::isfinite(value);
+    }
+
     /// \brief Serializes a value
     /// \details
     /// - If another element was serialized before:
@@ -246,8 +232,6 @@ class GenericValueSerializer final
     SerializerState serializer_state_;
 };
 
-}  // namespace vajson
-}  // namespace json
-}  // namespace score
+}  // namespace score::json::vajson
 
 #endif  // SCORE_LIB_JSON_INTERNAL_WRITER_VAJSON_WRITER_SERIALIZERS_STRUCTURES_GENERIC_VALUE_SERIALIZER_H

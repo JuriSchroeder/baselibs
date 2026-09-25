@@ -19,16 +19,9 @@
 #include "score/json/internal/parser/vajson/vajson_impl/util/types.h"
 #include "score/json/internal/writer/vajson/writer/serializers/structures/serializer.h"
 #include "score/json/internal/writer/vajson/writer/serializers/util/escaped_json_string.h"
-#include "score/json/internal/writer/vajson/writer/serializers/util/length_serializer.h"
-#include "score/json/internal/writer/vajson/writer/types/array_type.h"
 #include "score/json/internal/writer/vajson/writer/types/basic_types.h"
-#include "score/json/internal/writer/vajson/writer/types/object_type.h"
 
-namespace score
-{
-namespace json
-{
-namespace vajson
+namespace score::json::vajson
 {
 /// \brief A serializer for JSON keys
 /// \details This class only allows adding a key into the object and always returns a value serializer to only allow a
@@ -81,25 +74,6 @@ class KeySerializer final
         return Next(this->os_.get());
     }
 
-    /// \brief Serializes a binary key
-    /// \details
-    /// - Add a comma, if necessary.
-    /// - Serialize the length of the key as four bytes big endian.
-    /// - Write the key.
-    /// \param[in] key to serialize.
-    /// \return The succeeding serializer.
-    auto operator<<(JBinKeyType key) const&& noexcept -> Next
-    {
-        this->WriteComma();
-
-        this->os_.get().put('k');
-        internal::SerializeLength(this->os_.get(), key.GetLength());
-        const auto value = key.GetValue();
-        this->os_.get().write(value.data(), value.size());
-
-        return Next(this->os_.get());
-    }
-
   private:
     /// \brief Adds a comma to the stream, if necessary
     /// \details
@@ -119,8 +93,6 @@ class KeySerializer final
     SerializerState serializer_state_;
 };
 
-}  // namespace vajson
-}  // namespace json
-}  // namespace score
+}  // namespace score::json::vajson
 
 #endif  // SCORE_LIB_JSON_INTERNAL_WRITER_VAJSON_WRITER_SERIALIZERS_STRUCTURES_KEY_SERIALIZER_H
