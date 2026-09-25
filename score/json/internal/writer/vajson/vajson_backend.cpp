@@ -19,9 +19,9 @@ namespace
 {
 
 template <typename T>
-score::Result<void> SerializeToStreamInternal(std::ostream& out_stream, const T& json_data)
+score::Result<void> SerializeToStreamInternal(std::ostream& out_stream, const T& json_data, const bool pretty_print)
 {
-    score::json::VajsonSerialize serializer{out_stream};
+    score::json::VajsonSerialize serializer{out_stream, pretty_print};
     return serializer << json_data;
 }
 
@@ -30,34 +30,40 @@ score::Result<void> SerializeToStreamInternal(std::ostream& out_stream, const T&
 namespace score::json::internal::writer
 {
 
-score::Result<void> SerializeToStream(std::ostream& out_stream, const score::json::Object& json_data)
+score::Result<void> SerializeToStream(std::ostream& out_stream,
+                                      const score::json::Object& json_data,
+                                      const bool pretty_print)
 {
-    return SerializeToStreamInternal(out_stream, json_data);
+    return SerializeToStreamInternal(out_stream, json_data, pretty_print);
 }
 
-score::Result<void> SerializeToStream(std::ostream& out_stream, const score::json::List& json_data)
+score::Result<void> SerializeToStream(std::ostream& out_stream,
+                                      const score::json::List& json_data,
+                                      const bool pretty_print)
 {
-    return SerializeToStreamInternal(out_stream, json_data);
+    return SerializeToStreamInternal(out_stream, json_data, pretty_print);
 }
 
-score::Result<void> SerializeToStream(std::ostream& out_stream, const score::json::Any& json_data)
+score::Result<void> SerializeToStream(std::ostream& out_stream,
+                                      const score::json::Any& json_data,
+                                      const bool pretty_print)
 {
-    return SerializeToStreamInternal(out_stream, json_data);
+    return SerializeToStreamInternal(out_stream, json_data, pretty_print);
 }
 
-score::Result<std::string> SerializeToBuffer(const score::json::Object& json_data)
+score::Result<std::string> SerializeToBuffer(const score::json::Object& json_data, const bool pretty_print)
 {
-    return score::json::VajsonToBuffer(json_data);
+    return score::json::VajsonToBuffer(json_data, pretty_print);
 }
 
-score::Result<std::string> SerializeToBuffer(const score::json::List& json_data)
+score::Result<std::string> SerializeToBuffer(const score::json::List& json_data, const bool pretty_print)
 {
-    return score::json::VajsonToBuffer(json_data);
+    return score::json::VajsonToBuffer(json_data, pretty_print);
 }
 
-score::Result<std::string> SerializeToBuffer(const score::json::Any& json_data)
+score::Result<std::string> SerializeToBuffer(const score::json::Any& json_data, const bool pretty_print)
 {
-    return score::json::VajsonToBuffer(json_data);
+    return score::json::VajsonToBuffer(json_data, pretty_print);
 }
 
 }  // namespace score::json::internal::writer

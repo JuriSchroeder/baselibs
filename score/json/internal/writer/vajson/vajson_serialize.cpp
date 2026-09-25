@@ -18,9 +18,10 @@
 namespace
 {
 template <typename T>
-score::Result<void> SerializeToStream(std::ostream& out_stream, const T& json_data)
+score::Result<void> SerializeToStream(std::ostream& out_stream, const T& json_data, const bool pretty_print)
 {
-    auto serializer = score::json::vajson::DocumentSerializer{std::ref(out_stream)};
+    score::json::vajson::FormattingWriter writer{out_stream, pretty_print};
+    auto serializer = score::json::vajson::DocumentSerializer{std::ref(writer)};
     static_cast<void>(std::move(serializer) << json_data);
 
     // A default constructed Result<void> already carries the success state.
@@ -34,43 +35,47 @@ score::Result<void> SerializeToStream(std::ostream& out_stream, const T& json_da
     return result;
 }
 template <typename T>
-score::Result<std::string> SerializeToBuffer(const T& json_data)
+score::Result<std::string> SerializeToBuffer(const T& json_data, const bool pretty_print)
 {
     std::ostringstream out_stream{};
 
     // and_then keeps a single exit point: the buffer is only extracted once serialization succeeded,
     // and any error is forwarded unchanged.
-    return SerializeToStream(out_stream, json_data).and_then([&out_stream](auto&&...) -> score::Result<std::string> {
-        return out_stream.str();
-    });
+    return SerializeToStream(out_stream, json_data, pretty_print)
+        .and_then([&out_stream](auto&&...) -> score::Result<std::string> {
+            return out_stream.str();
+        });
 }
 }  // namespace
 
 namespace score::json
 {
-VajsonSerialize::VajsonSerialize(std::ostream& out_stream) noexcept : out_stream_{out_stream} {}
+VajsonSerialize::VajsonSerialize(std::ostream& out_stream, const bool pretty_print) noexcept
+    : out_stream_{out_stream}, pretty_print_{pretty_print}
+{
+}
 score::Result<void> VajsonSerialize::operator<<(const score::json::Object& json_data)
 {
-    return SerializeToStream(out_stream_, json_data);
+    return SerializeToStream(out_stream_, json_data, pretty_print_);
 }
 score::Result<void> VajsonSerialize::operator<<(const score::json::List& json_data)
 {
-    return SerializeToStream(out_stream_, json_data);
+    return SerializeToStream(out_stream_, json_data, pretty_print_);
 }
 score::Result<void> VajsonSerialize::operator<<(const score::json::Any& json_data)
 {
-    return SerializeToStream(out_stream_, json_data);
+    return SerializeToStream(out_stream_, json_data, pretty_print_);
 }
-score::Result<std::string> VajsonToBuffer(const score::json::Object& json_data)
+score::Result<std::string> VajsonToBuffer(const score::json::Object& json_data, const bool pretty_print)
 {
-    return SerializeToBuffer(json_data);
+    return SerializeToBuffer(json_data, pretty_print);
 }
-score::Result<std::string> VajsonToBuffer(const score::json::List& json_data)
+score::Result<std::string> VajsonToBuffer(const score::json::List& json_data, const bool pretty_print)
 {
-    return SerializeToBuffer(json_data);
+    return SerializeToBuffer(json_data, pretty_print);
 }
-score::Result<std::string> VajsonToBuffer(const score::json::Any& json_data)
+score::Result<std::string> VajsonToBuffer(const score::json::Any& json_data, const bool pretty_print)
 {
-    return SerializeToBuffer(json_data);
+    return SerializeToBuffer(json_data, pretty_print);
 }
 }  // namespace score::json

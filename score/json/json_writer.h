@@ -57,13 +57,19 @@ class JsonWriter final : public IJsonWriter
      *
      *  The `ownership` parameter is ignored when kUnsynced mode is used.
      *
+     *  The `pretty_print` parameter only takes effect with the vaJSON writer backend.
+     *  The json_serialize backend always pretty-prints and ignores it.
+     *
      *  @param file_sync_mode: Determines the synchronization mode (see above).
      *  @param ownership: When using kSynced mode, determines how to adjust the ownership
      *                    of the temporary file created.
+     *  @param pretty_print: Whether the output is indented and spread over multiple lines to be human readable.
+     *                       Otherwise it is written without insignificant whitespace.
      */
     explicit JsonWriter(FileSyncMode file_sync_mode = FileSyncMode::kUnsynced,
                         const score::filesystem::AtomicUpdateOwnershipFlags ownership =
-                            score::filesystem::kUseTargetFileUID | score::filesystem::kUseTargetFileGID) noexcept;
+                            score::filesystem::kUseTargetFileUID | score::filesystem::kUseTargetFileGID,
+                        const bool pretty_print = false) noexcept;
     JsonWriter(const JsonWriter&) = delete;
     JsonWriter(JsonWriter&&) noexcept = delete;
     JsonWriter& operator=(const JsonWriter&) = delete;
@@ -88,6 +94,8 @@ class JsonWriter final : public IJsonWriter
   private:
     FileSyncMode file_sync_mode_;
     const score::filesystem::AtomicUpdateOwnershipFlags atomic_ownership_;
+    /// @brief Whether the output is pretty-printed, if the selected writer backend supports it.
+    const bool pretty_print_;
 };
 
 }  // namespace json

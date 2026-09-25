@@ -35,14 +35,11 @@ using ::testing::ByMove;
 using ::testing::Return;
 using ::testing::StrEq;
 
-// The selected serialization backend decides the emitted representation: json_serialize pretty-prints with a four
-// space indentation, whereas vajson emits compact JSON without insignificant whitespace. Which backend is linked is
-// chosen by the //score/json:writer_library flag and communicated here via local_defines.
-#if defined(WRITER_VAJSON)
-constexpr auto kKeySeparator = "\":";
-#else
+// json_serialize always pretty-prints, whereas vajson only does so on request and emits compact JSON otherwise.
+// The tests request pretty printing, so both backends emit the same representation and share the expectations.
+// Which backend is linked is chosen by the //score/json:writer_library flag and communicated here via local_defines.
+constexpr bool kPrettyPrint{true};
 constexpr auto kKeySeparator = "\": ";
-#endif
 
 class TestJsonList : public json::List
 {
@@ -56,9 +53,6 @@ class TestJsonList : public json::List
         emplace_back(std::move(obj));
     }
 
-#if defined(WRITER_VAJSON)
-    static constexpr auto expected = R"([1234,"string",{"key":"value"}])";
-#else
     static constexpr auto expected = R"([
     1234,
     "string",
@@ -66,7 +60,6 @@ class TestJsonList : public json::List
         "key": "value"
     }
 ])";
-#endif
 };
 
 class TestJsonObject : public json::Object
@@ -78,14 +71,10 @@ class TestJsonObject : public json::Object
         emplace("num", score::json::Any{1});
     }
 
-#if defined(WRITER_VAJSON)
-    static constexpr auto expected = R"({"num":1,"string":"foo"})";
-#else
     static constexpr auto expected = R"({
     "num": 1,
     "string": "foo"
 })";
-#endif
 };
 
 class TestJsonAny : public json::Any
@@ -111,7 +100,8 @@ class JsonWriterWriteToFileTest : public ::testing::Test
     template <typename Json, typename... OpenArgs>
     std::string WriteToFile(const Json& json, std::string_view path, FileSyncMode type, OpenArgs&&... open_args)
     {
-        score::json::JsonWriter writer{type};
+        score::json::JsonWriter writer{
+            type, score::filesystem::kUseTargetFileUID | score::filesystem::kUseTargetFileGID, kPrettyPrint};
         std::string_view path_view{path};
         auto result = writer.ToFile(json, path_view, file_factory_fake, std::forward<OpenArgs>(open_args)...);
 
@@ -134,7 +124,9 @@ TYPED_TEST(JsonWriterWriteToFileTest, ToBuffer)
     this->RecordProperty("Priority", "3");
 
     typename TestFixture::SampleJson json;
-    score::json::JsonWriter writer{};
+    score::json::JsonWriter writer{FileSyncMode::kUnsynced,
+                                   score::filesystem::kUseTargetFileUID | score::filesystem::kUseTargetFileGID,
+                                   kPrettyPrint};
     std::string buffer = *writer.ToBuffer(json);
 
     EXPECT_EQ(buffer, TypeParam::expected);
@@ -240,6 +232,25 @@ TYPED_TEST(JsonWriterWriteToFileTest, ToSyncedFileResultsInError)
     EXPECT_EQ(result.error(), score::json::Error::kInvalidFilePath);
 }
 
+#if defined(WRITER_VAJSON)
+// Only vajson can emit compact JSON, json_serialize ignores the pretty print flag.
+TEST(JsonWriterTest, ToBufferCompact)
+{
+    RecordProperty("Verifies", "::score::json::JsonWriter::ToBuffer");
+    RecordProperty("ASIL", "B");
+    RecordProperty("Description", "writing compact json to string buffer, cf. RFC-8259 section 2");
+    RecordProperty("TestType", "interface-test");
+    RecordProperty("DerivationTechnique", "equivalence-classes");
+    RecordProperty("Priority", "3");
+
+    score::json::JsonWriter writer{};
+    const auto buffer = writer.ToBuffer(TestJsonObject{});
+
+    ASSERT_TRUE(buffer.has_value());
+    EXPECT_EQ(*buffer, R"({"num":1,"string":"foo"})");
+}
+#endif
+
 template <typename T>
 class JsonWriterIntegerTest : public ::testing::Test
 {
@@ -287,7 +298,9 @@ TYPED_TEST(JsonWriterIntegerTest, FormatsIntegralValuesCorrectly)
     obj["max"] = score::json::Any{std::numeric_limits<T>::max()};
 
     // Use the JsonWriter to serialize
-    score::json::JsonWriter writer;
+    score::json::JsonWriter writer{FileSyncMode::kUnsynced,
+                                   score::filesystem::kUseTargetFileUID | score::filesystem::kUseTargetFileGID,
+                                   kPrettyPrint};
     auto result = writer.ToBuffer(obj);
     ASSERT_TRUE(result.has_value());
     const std::string json_str = *result;

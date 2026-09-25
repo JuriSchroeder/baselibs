@@ -29,23 +29,33 @@ namespace score::json::internal::writer
 /// time by the `//score/json:writer_library` flag, resolved through the `//score/json/internal/writer:writer`
 /// alias -- the same mechanism the parser uses via `//score/json:base_library`.
 ///
-/// Note that the emitted representation is backend specific: `json_serialize` pretty-prints with a four space
-/// indentation, whereas `vajson` emits compact JSON without insignificant whitespace.
+/// Note that the emitted representation is backend specific: `json_serialize` always pretty-prints with a four space
+/// indentation and ignores `pretty_print`.
+/// `vajson` emits compact JSON without insignificant whitespace, unless `pretty_print` is set.
+/// Then it also indents by four spaces, but writes empty arrays and objects as `[]` and `{}`.
 
 /// \brief Serializes json_data into out_stream
 /// \param out_stream The stream to write the serialized representation to
 /// \param json_data The data to serialize
+/// \param pretty_print Whether the output is indented and spread over multiple lines, if the backend supports it
 /// \return empty result on success, error otherwise
-score::Result<void> SerializeToStream(std::ostream& out_stream, const score::json::Object& json_data);
-score::Result<void> SerializeToStream(std::ostream& out_stream, const score::json::List& json_data);
-score::Result<void> SerializeToStream(std::ostream& out_stream, const score::json::Any& json_data);
+score::Result<void> SerializeToStream(std::ostream& out_stream,
+                                      const score::json::Object& json_data,
+                                      const bool pretty_print);
+score::Result<void> SerializeToStream(std::ostream& out_stream,
+                                      const score::json::List& json_data,
+                                      const bool pretty_print);
+score::Result<void> SerializeToStream(std::ostream& out_stream,
+                                      const score::json::Any& json_data,
+                                      const bool pretty_print);
 
 /// \brief Serializes json_data into a string
 /// \param json_data The data to serialize
+/// \param pretty_print Whether the output is indented and spread over multiple lines, if the backend supports it
 /// \return the serialized representation on success, error otherwise
-score::Result<std::string> SerializeToBuffer(const score::json::Object& json_data);
-score::Result<std::string> SerializeToBuffer(const score::json::List& json_data);
-score::Result<std::string> SerializeToBuffer(const score::json::Any& json_data);
+score::Result<std::string> SerializeToBuffer(const score::json::Object& json_data, const bool pretty_print);
+score::Result<std::string> SerializeToBuffer(const score::json::List& json_data, const bool pretty_print);
+score::Result<std::string> SerializeToBuffer(const score::json::Any& json_data, const bool pretty_print);
 
 }  // namespace score::json::internal::writer
 
